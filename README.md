@@ -23,6 +23,7 @@ npm start
 ```
 
 Depois, acesse [http://localhost:4173](http://localhost:4173).
+OU https://danielassuncao99.github.io/movipro/ 
 
 ## Armazenamento
 
