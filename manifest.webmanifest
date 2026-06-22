@@ -1,0 +1,9 @@
+{
+  "name": "MoviPro - Gestão de Treinos",
+  "short_name": "MoviPro",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f5f3eb",
+  "theme_color": "#173f35",
+  "description": "Gestão para profissionais de educação física"
+}
