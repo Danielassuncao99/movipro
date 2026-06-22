@@ -337,7 +337,12 @@ document.querySelector("#signUpButton").addEventListener("click", async () => {
   const message = document.querySelector("#authMessage");
   const values = Object.fromEntries(new FormData(form));
   message.textContent = "Criando conta...";
-  const { data: authData, error } = await cloud.auth.signUp({ email: values.email, password: values.password });
+  const emailRedirectTo = `${window.location.origin}${window.location.pathname}`;
+  const { data: authData, error } = await cloud.auth.signUp({
+    email: values.email,
+    password: values.password,
+    options: { emailRedirectTo }
+  });
   if (error) { message.textContent = error.message; return; }
   if (authData.session) {
     form.reset(); form.closest("dialog").close();
