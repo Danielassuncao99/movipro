@@ -34,6 +34,7 @@
       <button class="menu-button" id="menuButton" aria-label="Abrir menu">☰</button>
       <div><p id="eyebrow">SEGUNDA-FEIRA</p><h1 id="pageTitle">Olá, profissional!</h1></div>
       <div class="top-actions">
+        <button class="cloud-button" id="authButton"><span id="syncDot"></span><span id="authButtonText">Conectar nuvem</span></button>
         <button class="icon-button" id="exportButton" title="Exportar dados">⇩</button>
         <button class="primary" data-open="studentModal">+ Novo aluno</button>
       </div>
@@ -95,7 +96,11 @@
 
   <dialog id="paymentModal"><form method="dialog" id="paymentForm"><div class="modal-head"><div><small>FINANCEIRO</small><h2>Novo lançamento</h2></div><button value="cancel" class="close">×</button></div><label>Aluno<select name="studentId" required class="student-select"></select></label><div class="form-row"><label>Valor (R$)<input name="amount" type="number" min="0" step="0.01" required></label><label>Vencimento<input name="dueDate" type="date" required></label></div><label>Status<select name="status"><option value="paid">Pago</option><option value="pending">Pendente</option></select></label><div class="modal-actions"><button value="cancel" class="secondary">Cancelar</button><button class="primary" value="default">Salvar lançamento</button></div></form></dialog>
 
+  <dialog id="authModal"><form method="dialog" id="authForm"><div class="modal-head"><div><small>DADOS NA NUVEM</small><h2>Acessar o MoviPro</h2></div><button value="cancel" class="close">×</button></div><p class="auth-intro">Entre para sincronizar seus alunos e treinos em todos os dispositivos.</p><label>E-mail<input name="email" type="email" autocomplete="email" required></label><label>Senha<input name="password" type="password" autocomplete="current-password" minlength="6" required></label><p id="authMessage" class="auth-message"></p><div class="modal-actions auth-actions"><button type="button" class="secondary" id="signUpButton">Criar conta</button><button class="primary" value="default">Entrar</button></div></form></dialog>
+
   <div id="toast" role="status"></div>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

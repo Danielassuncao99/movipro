@@ -13,6 +13,7 @@ Aplicativo web para profissionais de educação física organizarem alunos, trei
 - Avaliações físicas, agenda e controle financeiro
 - Backup dos dados em JSON
 - Layout responsivo e instalável como PWA
+- Login e sincronização segura com Supabase
 
 ## Executar localmente
 
@@ -27,7 +28,9 @@ OU https://danielassuncao99.github.io/movipro/
 
 ## Armazenamento
 
-Esta versão de demonstração salva os dados no `localStorage` do navegador. Cada dispositivo possui seus próprios dados; ainda não há conta de usuário ou banco de dados em nuvem.
+Sem login, o aplicativo continua salvando no `localStorage` do navegador. Ao entrar ou criar uma conta, os dados são sincronizados com o Supabase e protegidos por Row Level Security (RLS).
+
+O esquema do banco está versionado em `supabase/schema.sql`.
 
 ## Tecnologias
 
@@ -35,4 +38,3 @@ Esta versão de demonstração salva os dados no `localStorage` do navegador. Ca
 - CSS3
 - JavaScript
 - Service Worker e Web App Manifest
-

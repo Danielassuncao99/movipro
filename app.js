@@ -9,11 +9,24 @@ const seed = {
 };
 let data = loadData();
 let timers = {};
+const cloudConfig = window.MOVIPRO_SUPABASE || {};
+const cloud = cloudConfig.url && cloudConfig.anonKey && window.supabase ? window.supabase.createClient(cloudConfig.url, cloudConfig.anonKey) : null;
+let currentUser = null;
+let cloudSaveTimer = null;
+
+function normalizeData(value = {}) {
+  return {
+    students: Array.isArray(value.students) ? value.students : [],
+    workouts: Array.isArray(value.workouts) ? value.workouts : [],
+    assessments: Array.isArray(value.assessments) ? value.assessments : [],
+    appointments: Array.isArray(value.appointments) ? value.appointments : [],
+    payments: Array.isArray(value.payments) ? value.payments : []
+  };
+}
 
 function loadData() {
   try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY)) || seed;
-    saved.workouts ||= [];
+    const saved = normalizeData(JSON.parse(localStorage.getItem(STORAGE_KEY)) || seed);
     saved.workouts.forEach(item => item.workoutGroup = String(item.workoutGroup || "A").trim().toUpperCase());
     return saved;
   }
@@ -22,6 +35,7 @@ function loadData() {
 function saveData(message) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   renderAll();
+  queueCloudSave();
   if (message) toast(message);
 }
 function studentName(id) { return data.students.find(student => student.id === id)?.name || (id ? "Aluno removido" : "Sem aluno"); }
@@ -33,6 +47,65 @@ function toast(message) {
   const element = document.querySelector("#toast");
   element.textContent = message; element.classList.add("show");
   setTimeout(() => element.classList.remove("show"), 2200);
+}
+
+function setCloudState(state, text) {
+  const dot = document.querySelector("#syncDot");
+  const buttonText = document.querySelector("#authButtonText");
+  dot.className = state;
+  buttonText.textContent = text;
+}
+
+function queueCloudSave() {
+  if (!cloud || !currentUser) return;
+  clearTimeout(cloudSaveTimer);
+  setCloudState("syncing", "Salvando...");
+  cloudSaveTimer = setTimeout(persistCloudData, 500);
+}
+
+async function persistCloudData() {
+  if (!cloud || !currentUser) return;
+  const { error } = await cloud.from("user_app_data").upsert({ user_id: currentUser.id, payload: data, updated_at: new Date().toISOString() });
+  if (error) { setCloudState("error", "Falha ao salvar"); console.error(error); return; }
+  setCloudState("synced", "Nuvem sincronizada");
+}
+
+async function loadCloudData() {
+  if (!cloud || !currentUser) return;
+  setCloudState("syncing", "Sincronizando...");
+  const { data: row, error } = await cloud.from("user_app_data").select("payload").eq("user_id", currentUser.id).maybeSingle();
+  if (error) { setCloudState("error", "Falha na nuvem"); console.error(error); return; }
+  if (row?.payload && Object.keys(row.payload).length) {
+    data = normalizeData(row.payload);
+    data.workouts.forEach(item => item.workoutGroup = String(item.workoutGroup || "A").trim().toUpperCase());
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    renderAll();
+    setCloudState("synced", "Nuvem sincronizada");
+  } else {
+    await persistCloudData();
+  }
+}
+
+async function applyCloudSession(user) {
+  currentUser = user || null;
+  const authButton = document.querySelector("#authButton");
+  if (currentUser) {
+    authButton.title = currentUser.email || "Conta conectada";
+    await loadCloudData();
+  } else {
+    authButton.title = "Entrar para sincronizar";
+    setCloudState("local", cloud ? "Conectar nuvem" : "Somente neste aparelho");
+  }
+}
+
+async function initializeCloud() {
+  if (!cloud) { setCloudState("local", "Somente neste aparelho"); return; }
+  const { data: { session } } = await cloud.auth.getSession();
+  await applyCloudSession(session?.user);
+  cloud.auth.onAuthStateChange((event, session) => {
+    if (event === "SIGNED_IN" && session?.user?.id !== currentUser?.id) applyCloudSession(session.user);
+    if (event === "SIGNED_OUT") applyCloudSession(null);
+  });
 }
 
 function navigate(viewId) {
@@ -234,6 +307,47 @@ document.addEventListener("change", event => {
   if (event.target.dataset.load) { const item = data.workouts.find(workout => workout.id === event.target.dataset.load); if (item) { item.load = event.target.value ? Number(event.target.value) : ""; saveData("Carga atualizada."); } }
 });
 
+document.querySelector("#authButton").addEventListener("click", async () => {
+  if (!cloud) { toast("A nuvem ainda não foi configurada."); return; }
+  if (currentUser) {
+    if (confirm("Deseja sair da conta? Os dados deste aparelho continuarão disponíveis.")) await cloud.auth.signOut();
+    return;
+  }
+  document.querySelector("#authMessage").textContent = "";
+  document.querySelector("#authModal").showModal();
+});
+
+document.querySelector("#authForm").addEventListener("submit", async event => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  if (event.submitter?.value === "cancel") { form.closest("dialog").close(); return; }
+  const message = document.querySelector("#authMessage");
+  const values = Object.fromEntries(new FormData(form));
+  message.textContent = "Entrando...";
+  const { data: authData, error } = await cloud.auth.signInWithPassword({ email: values.email, password: values.password });
+  if (error) { message.textContent = error.message; return; }
+  form.reset(); form.closest("dialog").close();
+  await applyCloudSession(authData.user);
+  toast("Conta conectada. Dados sincronizados!");
+});
+
+document.querySelector("#signUpButton").addEventListener("click", async () => {
+  const form = document.querySelector("#authForm");
+  if (!form.reportValidity()) return;
+  const message = document.querySelector("#authMessage");
+  const values = Object.fromEntries(new FormData(form));
+  message.textContent = "Criando conta...";
+  const { data: authData, error } = await cloud.auth.signUp({ email: values.email, password: values.password });
+  if (error) { message.textContent = error.message; return; }
+  if (authData.session) {
+    form.reset(); form.closest("dialog").close();
+    await applyCloudSession(authData.user);
+    toast("Conta criada e conectada!");
+  } else {
+    message.textContent = "Conta criada. Confira seu e-mail para confirmar o acesso.";
+  }
+});
+
 const quickInput = document.querySelector("#quickTimerInput");
 const quickDisplay = document.querySelector("#quickTimer");
 let quickInterval;
@@ -255,4 +369,5 @@ document.querySelector("#heroDay").textContent = today.getDate();
 document.querySelector("#heroMonth").textContent = today.toLocaleDateString("pt-BR", { month: "short" }).replace(".", "").toUpperCase();
 document.querySelector("#appointmentForm [name=date]").value = today.toISOString().slice(0, 10);
 renderAll(); resetQuickTimer();
+initializeCloud();
 if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
