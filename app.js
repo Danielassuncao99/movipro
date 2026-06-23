@@ -52,8 +52,16 @@ function toast(message) {
 function setCloudState(state, text) {
   const dot = document.querySelector("#syncDot");
   const buttonText = document.querySelector("#authButtonText");
+  if (!dot || !buttonText) return;
   dot.className = state;
   buttonText.textContent = text;
+}
+
+function setAppAccess(isLoggedIn) {
+  document.querySelector("#authScreen").hidden = isLoggedIn;
+  document.querySelector(".sidebar").hidden = !isLoggedIn;
+  document.querySelector("main").hidden = !isLoggedIn;
+  document.body.classList.toggle("is-authenticated", isLoggedIn);
 }
 
 function queueCloudSave() {
@@ -90,16 +98,23 @@ async function applyCloudSession(user) {
   currentUser = user || null;
   const authButton = document.querySelector("#authButton");
   if (currentUser) {
+    setAppAccess(true);
     authButton.title = currentUser.email || "Conta conectada";
     await loadCloudData();
   } else {
+    setAppAccess(false);
     authButton.title = "Entrar para sincronizar";
     setCloudState("local", cloud ? "Conectar nuvem" : "Somente neste aparelho");
   }
 }
 
 async function initializeCloud() {
-  if (!cloud) { setCloudState("local", "Somente neste aparelho"); return; }
+  if (!cloud) {
+    setAppAccess(false);
+    document.querySelector("#authMessage").textContent = "A nuvem ainda nao foi configurada para liberar o acesso.";
+    setCloudState("local", "Somente neste aparelho");
+    return;
+  }
   const { data: { session } } = await cloud.auth.getSession();
   await applyCloudSession(session?.user);
   cloud.auth.onAuthStateChange((event, session) => {
@@ -314,19 +329,19 @@ document.querySelector("#authButton").addEventListener("click", async () => {
     return;
   }
   document.querySelector("#authMessage").textContent = "";
-  document.querySelector("#authModal").showModal();
+  setAppAccess(false);
 });
 
 document.querySelector("#authForm").addEventListener("submit", async event => {
   event.preventDefault();
   const form = event.currentTarget;
-  if (event.submitter?.value === "cancel") { form.closest("dialog").close(); return; }
   const message = document.querySelector("#authMessage");
+  if (!cloud) { message.textContent = "A nuvem ainda nao foi configurada para liberar o acesso."; return; }
   const values = Object.fromEntries(new FormData(form));
   message.textContent = "Entrando...";
   const { data: authData, error } = await cloud.auth.signInWithPassword({ email: values.email, password: values.password });
   if (error) { message.textContent = error.message; return; }
-  form.reset(); form.closest("dialog").close();
+  form.reset();
   await applyCloudSession(authData.user);
   toast("Conta conectada. Dados sincronizados!");
 });
@@ -335,6 +350,7 @@ document.querySelector("#signUpButton").addEventListener("click", async () => {
   const form = document.querySelector("#authForm");
   if (!form.reportValidity()) return;
   const message = document.querySelector("#authMessage");
+  if (!cloud) { message.textContent = "A nuvem ainda nao foi configurada para liberar o acesso."; return; }
   const values = Object.fromEntries(new FormData(form));
   message.textContent = "Criando conta...";
   const emailRedirectTo = `${window.location.origin}${window.location.pathname}`;
@@ -345,7 +361,7 @@ document.querySelector("#signUpButton").addEventListener("click", async () => {
   });
   if (error) { message.textContent = error.message; return; }
   if (authData.session) {
-    form.reset(); form.closest("dialog").close();
+    form.reset();
     await applyCloudSession(authData.user);
     toast("Conta criada e conectada!");
   } else {
