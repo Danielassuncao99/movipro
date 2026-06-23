@@ -53,9 +53,7 @@
       <button class="nav-item active" data-view="inicio"><span>⌂</span> Visão geral</button>
       <button class="nav-item" data-view="alunos"><span>◎</span> Alunos</button>
       <button class="nav-item" data-view="treinos"><span>▤</span> Treinos</button>
-      <button class="nav-item" data-view="avaliacoes"><span>↗</span> Avaliações</button>
-      <button class="nav-item" data-view="agenda"><span>□</span> Agenda</button>
-      <button class="nav-item" data-view="financeiro"><span>$</span> Financeiro</button>
+      <button class="nav-item" data-view="professor"><span>PF</span> Professor</button>
     </nav>
     <div class="sidebar-footer">
       <div class="avatar">PF</div>
@@ -76,7 +74,7 @@
       </div>
       <div class="stats" id="stats"></div>
       <div class="dashboard-grid">
-        <article class="panel"><div class="panel-head"><div><small>AGENDA</small><h3>Próximos atendimentos</h3></div><button class="text-button" data-go="agenda">Ver agenda →</button></div><div id="nextAppointments" class="list"></div></article>
+        <article class="panel"><div class="panel-head"><div><small>PROFESSOR</small><h3>Gestao profissional</h3></div><button class="text-button" data-go="professor">Abrir area →</button></div><div class="professor-shortcuts"><button class="secondary" data-go="avaliacoes">Avaliacoes</button><button class="secondary" data-go="agenda">Agenda</button><button class="secondary" data-go="financeiro">Financeiro</button></div></article>
         <article class="panel timer-card">
           <div class="panel-head"><div><small>CRONÔMETRO</small><h3>Descanso do exercício</h3></div><span class="live-dot">TEMPO REAL</span></div>
           <label>Tempo em segundos<input id="quickTimerInput" type="number" min="5" max="900" value="60"></label>
@@ -97,6 +95,15 @@
       <div class="section-head"><div><span class="pill">PLANILHAS DIGITAIS</span><h2>Treinos</h2><p>Crie exercícios e deixe cada aluno registrar carga e progresso.</p></div><button class="primary" data-open="workoutModal">+ Novo exercício</button></div>
       <div class="toolbar"><select id="workoutStudentFilter"><option value="">Todos os alunos</option></select></div>
       <div id="workoutList" class="workout-list"></div>
+    </section>
+
+    <section class="view" id="professor">
+      <div class="section-head"><div><span class="pill">AREA DO PROFESSOR</span><h2>Ferramentas do professor</h2><p>Organize a gestao profissional sem misturar com a visao do aluno.</p></div></div>
+      <div class="professor-grid">
+        <article class="professor-card"><small>EVOLUCAO</small><h3>Avaliacoes fisicas</h3><p>Registre medidas, peso, percentual de gordura e observacoes de evolucao.</p><button class="primary" data-go="avaliacoes">Abrir avaliacoes</button></article>
+        <article class="professor-card"><small>ORGANIZACAO</small><h3>Agenda</h3><p>Controle atendimentos, consultorias, revisoes de treino e horarios marcados.</p><button class="primary" data-go="agenda">Abrir agenda</button></article>
+        <article class="professor-card"><small>CONTROLE</small><h3>Financeiro</h3><p>Acompanhe mensalidades, pagamentos recebidos e valores pendentes.</p><button class="primary" data-go="financeiro">Abrir financeiro</button></article>
+      </div>
     </section>
 
     <section class="view" id="avaliacoes">

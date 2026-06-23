@@ -142,8 +142,10 @@ async function initializeCloud() {
 
 function navigate(viewId) {
   document.querySelectorAll(".view").forEach(view => view.classList.toggle("active", view.id === viewId));
-  document.querySelectorAll(".nav-item").forEach(item => item.classList.toggle("active", item.dataset.view === viewId));
-  const titles = { inicio: greetingTitle(), alunos: "Gestão de alunos", treinos: "Planilhas de treino", avaliacoes: "Avaliações físicas", agenda: "Agenda", financeiro: "Controle financeiro" };
+  const professorViews = ["professor", "avaliacoes", "agenda", "financeiro"];
+  const activeMenu = professorViews.includes(viewId) ? "professor" : viewId;
+  document.querySelectorAll(".nav-item").forEach(item => item.classList.toggle("active", item.dataset.view === activeMenu));
+  const titles = { inicio: greetingTitle(), alunos: "Gestão de alunos", treinos: "Planilhas de treino", professor: "Ferramentas do professor", avaliacoes: "Avaliações físicas", agenda: "Agenda", financeiro: "Controle financeiro" };
   document.querySelector("#pageTitle").textContent = titles[viewId];
   document.querySelector(".sidebar").classList.remove("open");
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -226,7 +228,8 @@ function renderAppointments() {
   const sorted = data.appointments.slice().sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`));
   const appointment = item => `<div class="timeline-item"><strong>${localDate(item.date)}<br>${item.time}</strong><div><h3>${studentName(item.studentId)}</h3><p>${item.type}</p></div><button class="danger" data-delete-appointment="${item.id}">×</button></div>`;
   document.querySelector("#appointmentList").innerHTML = sorted.length ? sorted.map(appointment).join("") : empty("Agenda livre", "Adicione seu próximo atendimento.");
-  document.querySelector("#nextAppointments").innerHTML = sorted.length ? sorted.slice(0, 4).map(item => `<div class="list-item"><div class="time-block">${item.time}</div><div class="grow"><strong>${studentName(item.studentId)}</strong><p>${item.type} · ${localDate(item.date)}</p></div><span class="status">AGENDADO</span></div>`).join("") : empty("Sem atendimentos", "Sua agenda aparecerá aqui.");
+  const nextAppointments = document.querySelector("#nextAppointments");
+  if (nextAppointments) nextAppointments.innerHTML = sorted.length ? sorted.slice(0, 4).map(item => `<div class="list-item"><div class="time-block">${item.time}</div><div class="grow"><strong>${studentName(item.studentId)}</strong><p>${item.type} · ${localDate(item.date)}</p></div><span class="status">AGENDADO</span></div>`).join("") : empty("Sem atendimentos", "Sua agenda aparecerá aqui.");
 }
 
 function renderPayments() {
