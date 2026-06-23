@@ -398,6 +398,11 @@ document.querySelector("#authButton")?.addEventListener("click", async () => {
   setAppAccess(false);
 });
 
+document.querySelector("#logoutButton")?.addEventListener("click", async () => {
+  if (!cloud) { setAppAccess(false); return; }
+  if (confirm("Deseja sair da conta?")) await cloud.auth.signOut();
+});
+
 document.querySelector("#authForm").addEventListener("submit", async event => {
   event.preventDefault();
   const form = event.currentTarget;
