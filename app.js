@@ -40,6 +40,12 @@ function saveData(message) {
 }
 function studentName(id) { return data.students.find(student => student.id === id)?.name || (id ? "Aluno removido" : "Sem aluno"); }
 function initials(name) { return name.split(" ").slice(0, 2).map(part => part[0]).join("").toUpperCase(); }
+function professionalName() {
+  const metadata = currentUser?.user_metadata || {};
+  const rawName = metadata.name || metadata.full_name || currentUser?.email?.split("@")[0] || "profissional";
+  return String(rawName).trim() || "profissional";
+}
+function greetingTitle() { return `Olá, ${professionalName()}!`; }
 function currency(value) { return Number(value).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }); }
 function localDate(value) { return value ? new Date(`${value}T12:00:00`).toLocaleDateString("pt-BR") : "-"; }
 function empty(title, text) { return `<div class="empty"><strong>${title}</strong>${text}</div>`; }
@@ -62,6 +68,16 @@ function setAppAccess(isLoggedIn) {
   document.querySelector(".sidebar").hidden = !isLoggedIn;
   document.querySelector("main").hidden = !isLoggedIn;
   document.body.classList.toggle("is-authenticated", isLoggedIn);
+}
+
+function updateProfessionalIdentity() {
+  const name = professionalName();
+  const activeView = document.querySelector(".view.active")?.id || "inicio";
+  const sidebarName = document.querySelector(".sidebar-footer strong");
+  const sidebarInitials = document.querySelector(".sidebar-footer .avatar");
+  if (activeView === "inicio") document.querySelector("#pageTitle").textContent = greetingTitle();
+  if (sidebarName) sidebarName.textContent = name;
+  if (sidebarInitials) sidebarInitials.textContent = initials(name);
 }
 
 function queueCloudSave() {
@@ -99,6 +115,7 @@ async function applyCloudSession(user) {
   const authButton = document.querySelector("#authButton");
   if (currentUser) {
     setAppAccess(true);
+    updateProfessionalIdentity();
     authButton.title = currentUser.email || "Conta conectada";
     await loadCloudData();
   } else {
@@ -126,7 +143,7 @@ async function initializeCloud() {
 function navigate(viewId) {
   document.querySelectorAll(".view").forEach(view => view.classList.toggle("active", view.id === viewId));
   document.querySelectorAll(".nav-item").forEach(item => item.classList.toggle("active", item.dataset.view === viewId));
-  const titles = { inicio: "Olá, profissional!", alunos: "Gestão de alunos", treinos: "Planilhas de treino", avaliacoes: "Avaliações físicas", agenda: "Agenda", financeiro: "Controle financeiro" };
+  const titles = { inicio: greetingTitle(), alunos: "Gestão de alunos", treinos: "Planilhas de treino", avaliacoes: "Avaliações físicas", agenda: "Agenda", financeiro: "Controle financeiro" };
   document.querySelector("#pageTitle").textContent = titles[viewId];
   document.querySelector(".sidebar").classList.remove("open");
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -341,6 +358,10 @@ document.querySelector("#authForm").addEventListener("submit", async event => {
   message.textContent = "Entrando...";
   const { data: authData, error } = await cloud.auth.signInWithPassword({ email: values.email, password: values.password });
   if (error) { message.textContent = error.message; return; }
+  if (values.name && !authData.user?.user_metadata?.name) {
+    await cloud.auth.updateUser({ data: { name: values.name.trim() } });
+    authData.user.user_metadata = { ...(authData.user.user_metadata || {}), name: values.name.trim() };
+  }
   form.reset();
   await applyCloudSession(authData.user);
   toast("Conta conectada. Dados sincronizados!");
@@ -357,7 +378,7 @@ document.querySelector("#signUpButton").addEventListener("click", async () => {
   const { data: authData, error } = await cloud.auth.signUp({
     email: values.email,
     password: values.password,
-    options: { emailRedirectTo }
+    options: { emailRedirectTo, data: { name: values.name?.trim() || values.email.split("@")[0] } }
   });
   if (error) { message.textContent = error.message; return; }
   if (authData.session) {
