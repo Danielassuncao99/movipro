@@ -46,6 +46,19 @@ function professionalName() {
   return String(rawName).trim() || "profissional";
 }
 function greetingTitle() { return `Olá, ${professionalName()}!`; }
+function userRole() { return currentUser?.user_metadata?.role === "student" ? "student" : "professor"; }
+function isProfessor() { return userRole() === "professor"; }
+function roleLabel() { return isProfessor() ? "Professor" : "Aluno"; }
+function currentStudent() {
+  const email = currentUser?.email?.trim().toLowerCase();
+  if (!email) return null;
+  return data.students.find(student => student.email?.trim().toLowerCase() === email) || null;
+}
+function roleWorkouts() {
+  if (isProfessor()) return data.workouts;
+  const student = currentStudent();
+  return student ? data.workouts.filter(item => item.studentId === student.id) : [];
+}
 function currency(value) { return Number(value).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }); }
 function localDate(value) { return value ? new Date(`${value}T12:00:00`).toLocaleDateString("pt-BR") : "-"; }
 function empty(title, text) { return `<div class="empty"><strong>${title}</strong>${text}</div>`; }
@@ -68,6 +81,20 @@ function setAppAccess(isLoggedIn) {
   document.querySelector(".sidebar").hidden = !isLoggedIn;
   document.querySelector("main").hidden = !isLoggedIn;
   document.body.classList.toggle("is-authenticated", isLoggedIn);
+  if (isLoggedIn) applyRoleLayout();
+}
+
+function applyRoleLayout() {
+  const professor = isProfessor();
+  document.body.dataset.role = userRole();
+  document.querySelectorAll("[data-professor-only]").forEach(element => element.hidden = !professor);
+  const workoutTitle = document.querySelector("#treinos .section-head h2");
+  const workoutText = document.querySelector("#treinos .section-head p");
+  if (workoutTitle) workoutTitle.textContent = professor ? "Treinos" : "Meus treinos";
+  if (workoutText) workoutText.textContent = professor ? "Crie exercícios e deixe cada aluno registrar carga e progresso." : "Acompanhe os exercícios liberados pelo seu professor.";
+  if (!professor && ["alunos", "professor", "avaliacoes", "agenda", "financeiro"].includes(document.querySelector(".view.active")?.id)) {
+    navigate("treinos");
+  }
 }
 
 function updateProfessionalIdentity() {
@@ -78,6 +105,8 @@ function updateProfessionalIdentity() {
   if (activeView === "inicio") document.querySelector("#pageTitle").textContent = greetingTitle();
   if (sidebarName) sidebarName.textContent = name;
   if (sidebarInitials) sidebarInitials.textContent = initials(name);
+  const sidebarRole = document.querySelector(".sidebar-footer small");
+  if (sidebarRole) sidebarRole.textContent = `Perfil ${roleLabel().toLowerCase()}`;
 }
 
 function queueCloudSave() {
@@ -141,17 +170,31 @@ async function initializeCloud() {
 }
 
 function navigate(viewId) {
+  if (!isProfessor() && ["alunos", "professor", "avaliacoes", "agenda", "financeiro"].includes(viewId)) viewId = "treinos";
   document.querySelectorAll(".view").forEach(view => view.classList.toggle("active", view.id === viewId));
   const professorViews = ["professor", "avaliacoes", "agenda", "financeiro"];
   const activeMenu = professorViews.includes(viewId) ? "professor" : viewId;
   document.querySelectorAll(".nav-item").forEach(item => item.classList.toggle("active", item.dataset.view === activeMenu));
-  const titles = { inicio: greetingTitle(), alunos: "Gestão de alunos", treinos: "Planilhas de treino", professor: "Ferramentas do professor", avaliacoes: "Avaliações físicas", agenda: "Agenda", financeiro: "Controle financeiro" };
+  const titles = { inicio: greetingTitle(), alunos: "Gestão de alunos", treinos: isProfessor() ? "Planilhas de treino" : "Meus treinos", professor: "Ferramentas do professor", avaliacoes: "Avaliações físicas", agenda: "Agenda", financeiro: "Controle financeiro" };
   document.querySelector("#pageTitle").textContent = titles[viewId];
   document.querySelector(".sidebar").classList.remove("open");
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function renderStats() {
+  if (!isProfessor()) {
+    const workouts = roleWorkouts();
+    const completed = workouts.filter(item => item.completedAt).length;
+    const groups = new Set(workouts.map(item => item.workoutGroup || "A")).size;
+    const restCount = workouts.filter(item => item.rest).length;
+    document.querySelector("#stats").innerHTML = [
+      [workouts.length, "Exercícios liberados", "meus treinos"],
+      [completed, "Exercícios feitos", "progresso registrado"],
+      [groups, "Divisões de treino", "Treino A, B, C..."],
+      [restCount, "Cronômetros", "descanso configurado"]
+    ].map(([value, label, note]) => `<div class="stat"><small>${label.toUpperCase()}</small><b>${value}</b><span class="trend">${note}</span></div>`).join("");
+    return;
+  }
   const paid = data.payments.filter(payment => payment.status === "paid").reduce((total, payment) => total + Number(payment.amount), 0);
   const todayKey = today.toISOString().slice(0, 10);
   const stats = [
@@ -205,15 +248,17 @@ function renderStudents() {
 
 function renderWorkouts() {
   const filter = document.querySelector("#workoutStudentFilter").value;
-  const workouts = data.workouts.filter(item => !filter || item.studentId === filter);
+  const student = currentStudent();
+  const workouts = roleWorkouts().filter(item => isProfessor() ? (!filter || item.studentId === filter) : true);
+  const emptyText = student ? "Seu treino ainda nao foi liberado pelo professor." : "Seu e-mail ainda nao esta vinculado a um aluno cadastrado.";
   document.querySelector("#workoutList").innerHTML = workouts.length ? workouts.map(item => `
     <article class="workout-card">
       <div><small>${studentName(item.studentId).toUpperCase()} · TREINO ${item.workoutGroup || "A"}</small><h3>${item.exercise || "Exercício sem nome"}</h3><p>${item.notes || "Sem observações"}</p></div>
       <div class="metric"><small>SÉRIES</small><b>${item.sets || "-"}</b></div><div class="metric"><small>REPETIÇÕES</small><b>${item.reps || "-"}</b></div>
-      <div class="metric"><small>CARGA</small><b><input data-load="${item.id}" type="number" min="0" step="0.5" value="${item.load ?? ""}" placeholder="-" style="width:75px;padding:6px"></b></div>
+      <div class="metric"><small>CARGA</small><b>${isProfessor() ? `<input data-load="${item.id}" type="number" min="0" step="0.5" value="${item.load ?? ""}" placeholder="-" style="width:75px;padding:6px">` : (item.load ? `${item.load} kg` : "-")}</b></div>
       <div class="metric"><small>DESCANSO</small><b>${item.rest ? `${item.rest}s` : "-"}</b></div>
-      <div><button class="exercise-action edit-button" data-edit-workout="${item.id}"><span>✎</span>Editar</button> ${item.rest ? `<button class="secondary mini-timer" data-timer="${item.id}" data-seconds="${item.rest}">▶ ${formatTime(item.rest)}</button>` : ""} <button class="danger" data-delete-workout="${item.id}" title="Excluir">×</button></div>
-    </article>`).join("") : empty("Nenhum exercício criado", "Monte a primeira planilha digital de treino.");
+      <div><button class="exercise-action complete-button ${item.completedAt ? "is-complete" : ""}" data-toggle-complete="${item.id}"><span>${item.completedAt ? "✓" : "○"}</span>${item.completedAt ? "Feito" : "Concluir"}</button> ${isProfessor() ? `<button class="exercise-action edit-button" data-edit-workout="${item.id}"><span>✎</span>Editar</button>` : ""} ${item.rest ? `<button class="secondary mini-timer" data-timer="${item.id}" data-seconds="${item.rest}">▶ ${formatTime(item.rest)}</button>` : ""} ${isProfessor() ? `<button class="danger" data-delete-workout="${item.id}" title="Excluir">×</button>` : ""}</div>
+    </article>`).join("") : empty(isProfessor() ? "Nenhum exercício criado" : "Nenhum treino encontrado", isProfessor() ? "Monte a primeira planilha digital de treino." : emptyText);
 }
 
 function renderAssessments() {
@@ -283,6 +328,7 @@ function openWorkoutModal(item = null, studentId = "", workoutGroup = "A") {
 document.querySelectorAll(".nav-item").forEach(button => button.addEventListener("click", () => navigate(button.dataset.view)));
 document.querySelectorAll("[data-go]").forEach(button => button.addEventListener("click", () => navigate(button.dataset.go)));
 document.querySelectorAll("[data-open]").forEach(button => button.addEventListener("click", () => {
+  if (!isProfessor()) { toast("Esta acao e exclusiva do professor."); return; }
   if (!data.students.length && !["studentModal", "workoutModal"].includes(button.dataset.open)) { toast("Cadastre um aluno primeiro."); return; }
   if (button.dataset.open === "workoutModal") { openWorkoutModal(); return; }
   document.querySelector(`#${button.dataset.open}`).showModal();
@@ -361,9 +407,11 @@ document.querySelector("#authForm").addEventListener("submit", async event => {
   message.textContent = "Entrando...";
   const { data: authData, error } = await cloud.auth.signInWithPassword({ email: values.email, password: values.password });
   if (error) { message.textContent = error.message; return; }
-  if (values.name && !authData.user?.user_metadata?.name) {
-    await cloud.auth.updateUser({ data: { name: values.name.trim() } });
-    authData.user.user_metadata = { ...(authData.user.user_metadata || {}), name: values.name.trim() };
+  const metadata = { ...(authData.user?.user_metadata || {}), role: values.role || "professor" };
+  if (values.name) metadata.name = values.name.trim();
+  const { data: updatedUser } = await cloud.auth.updateUser({ data: metadata });
+  if (updatedUser?.user) {
+    authData.user.user_metadata = updatedUser.user.user_metadata;
   }
   form.reset();
   await applyCloudSession(authData.user);
@@ -381,7 +429,7 @@ document.querySelector("#signUpButton").addEventListener("click", async () => {
   const { data: authData, error } = await cloud.auth.signUp({
     email: values.email,
     password: values.password,
-    options: { emailRedirectTo, data: { name: values.name?.trim() || values.email.split("@")[0] } }
+    options: { emailRedirectTo, data: { name: values.name?.trim() || values.email.split("@")[0], role: values.role || "professor" } }
   });
   if (error) { message.textContent = error.message; return; }
   if (authData.session) {

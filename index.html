@@ -24,6 +24,7 @@
       <p>Seus dados ficam salvos na nuvem e podem ser acessados em outros dispositivos depois do login.</p>
       <form id="authForm" class="auth-panel">
         <label>Seu nome (opcional no login)<input name="name" autocomplete="name" placeholder="Ex.: Daniel Assuncao"></label>
+        <label>Entrar como<select name="role"><option value="professor">Professor</option><option value="student">Aluno</option></select></label>
         <label>E-mail<input name="email" type="email" autocomplete="email" required></label>
         <label>Senha<input name="password" type="password" autocomplete="current-password" minlength="6" required></label>
         <p id="authMessage" class="auth-message"></p>
@@ -51,9 +52,9 @@
     </a>
     <nav id="mainNav">
       <button class="nav-item active" data-view="inicio"><span>⌂</span> Visão geral</button>
-      <button class="nav-item" data-view="alunos"><span>◎</span> Alunos</button>
+      <button class="nav-item" data-view="alunos" data-professor-only><span>◎</span> Alunos</button>
       <button class="nav-item" data-view="treinos"><span>▤</span> Treinos</button>
-      <button class="nav-item" data-view="professor"><span>PF</span> Professor</button>
+      <button class="nav-item" data-view="professor" data-professor-only><span>PF</span> Professor</button>
     </nav>
     <div class="sidebar-footer">
       <div class="avatar">PF</div>
@@ -82,24 +83,25 @@
           <div class="timer-actions"><button class="primary" id="quickTimerStart">Iniciar</button><button class="secondary" id="quickTimerReset">Reiniciar</button></div>
         </article>
       </div>
-      <article class="panel"><div class="panel-head"><div><small>ALUNOS</small><h3>Atividade recente</h3></div><button class="text-button" data-go="alunos">Ver todos →</button></div><div id="recentStudents" class="student-grid"></div></article>
+      <article class="panel" data-professor-only><div class="panel-head"><div><small>ALUNOS</small><h3>Atividade recente</h3></div><button class="text-button" data-go="alunos">Ver todos →</button></div><div id="recentStudents" class="student-grid"></div></article>
     </section>
 
-    <section class="view" id="alunos">
-      <div class="section-head"><div><span class="pill">CARTEIRA DE ALUNOS</span><h2>Seus alunos</h2><p>Cadastre, pesquise e acompanhe cada pessoa.</p></div><button class="primary" data-open="studentModal">+ Adicionar aluno</button></div>
+    <section class="view" id="alunos" data-professor-only>
+      <div class="section-head"><div><span class="pill">CARTEIRA DE ALUNOS</span><h2>Seus alunos</h2><p>Pesquise e acompanhe cada pessoa cadastrada.</p></div></div>
       <div class="toolbar"><input id="studentSearch" type="search" placeholder="Pesquisar por nome ou objetivo..."></div>
       <div id="studentList" class="card-grid"></div>
     </section>
 
     <section class="view" id="treinos">
-      <div class="section-head"><div><span class="pill">PLANILHAS DIGITAIS</span><h2>Treinos</h2><p>Crie exercícios e deixe cada aluno registrar carga e progresso.</p></div><button class="primary" data-open="workoutModal">+ Novo exercício</button></div>
-      <div class="toolbar"><select id="workoutStudentFilter"><option value="">Todos os alunos</option></select></div>
+      <div class="section-head"><div><span class="pill">PLANILHAS DIGITAIS</span><h2>Treinos</h2><p>Crie exercícios e deixe cada aluno registrar carga e progresso.</p></div><button class="primary" data-open="workoutModal" data-professor-only>+ Novo exercício</button></div>
+      <div class="toolbar" data-professor-only><select id="workoutStudentFilter"><option value="">Todos os alunos</option></select></div>
       <div id="workoutList" class="workout-list"></div>
     </section>
 
     <section class="view" id="professor">
       <div class="section-head"><div><span class="pill">AREA DO PROFESSOR</span><h2>Ferramentas do professor</h2><p>Organize a gestao profissional sem misturar com a visao do aluno.</p></div></div>
       <div class="professor-grid">
+        <article class="professor-card"><small>CADASTRO</small><h3>Adicionar aluno</h3><p>Crie o cadastro do aluno antes de montar treinos, avaliacoes e agenda.</p><button class="primary" data-open="studentModal">+ Adicionar aluno</button></article>
         <article class="professor-card"><small>EVOLUCAO</small><h3>Avaliacoes fisicas</h3><p>Registre medidas, peso, percentual de gordura e observacoes de evolucao.</p><button class="primary" data-go="avaliacoes">Abrir avaliacoes</button></article>
         <article class="professor-card"><small>ORGANIZACAO</small><h3>Agenda</h3><p>Controle atendimentos, consultorias, revisoes de treino e horarios marcados.</p><button class="primary" data-go="agenda">Abrir agenda</button></article>
         <article class="professor-card"><small>CONTROLE</small><h3>Financeiro</h3><p>Acompanhe mensalidades, pagamentos recebidos e valores pendentes.</p><button class="primary" data-go="financeiro">Abrir financeiro</button></article>
