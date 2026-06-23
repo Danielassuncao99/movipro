@@ -116,11 +116,11 @@ async function applyCloudSession(user) {
   if (currentUser) {
     setAppAccess(true);
     updateProfessionalIdentity();
-    authButton.title = currentUser.email || "Conta conectada";
+    if (authButton) authButton.title = currentUser.email || "Conta conectada";
     await loadCloudData();
   } else {
     setAppAccess(false);
-    authButton.title = "Entrar para sincronizar";
+    if (authButton) authButton.title = "Entrar para sincronizar";
     setCloudState("local", cloud ? "Conectar nuvem" : "Somente neste aparelho");
   }
 }
@@ -339,7 +339,7 @@ document.addEventListener("change", event => {
   if (event.target.dataset.load) { const item = data.workouts.find(workout => workout.id === event.target.dataset.load); if (item) { item.load = event.target.value ? Number(event.target.value) : ""; saveData("Carga atualizada."); } }
 });
 
-document.querySelector("#authButton").addEventListener("click", async () => {
+document.querySelector("#authButton")?.addEventListener("click", async () => {
   if (!cloud) { toast("A nuvem ainda não foi configurada."); return; }
   if (currentUser) {
     if (confirm("Deseja sair da conta? Os dados deste aparelho continuarão disponíveis.")) await cloud.auth.signOut();
@@ -401,7 +401,7 @@ document.querySelector("#quickTimerStart").addEventListener("click", event => {
   let remaining = quickDisplay.textContent.split(":").reduce((minutes, part) => minutes * 60 + Number(part));
   event.target.textContent = "Pausar"; quickInterval = setInterval(() => { remaining--; quickDisplay.textContent = formatTime(remaining); if (remaining <= 0) { clearInterval(quickInterval); quickInterval = null; event.target.textContent = "Iniciar"; toast("Tempo de descanso concluído!"); if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } }, 1000);
 });
-document.querySelector("#exportButton").addEventListener("click", () => {
+document.querySelector("#exportButton")?.addEventListener("click", () => {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
   const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `movipro-backup-${new Date().toISOString().slice(0, 10)}.json`; link.click(); URL.revokeObjectURL(link.href); toast("Backup exportado.");
 });
