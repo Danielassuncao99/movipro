@@ -261,14 +261,38 @@ function renderWorkouts() {
   const student = currentStudent();
   const workouts = roleWorkouts().filter(item => isProfessor() ? (!filter || item.studentId === filter) : true);
   const emptyText = student ? "Seu treino ainda nao foi liberado pelo professor." : "Seu e-mail ainda nao esta vinculado a um aluno cadastrado.";
-  document.querySelector("#workoutList").innerHTML = workouts.length ? workouts.map(item => `
-    <article class="workout-card">
+  const workoutCard = item => `
+    <article class="workout-card ${item.completedAt ? "completed" : ""}">
       <div><small>${studentName(item.studentId).toUpperCase()} · TREINO ${item.workoutGroup || "A"}</small><h3>${item.exercise || "Exercício sem nome"}</h3><p>${item.notes || "Sem observações"}</p></div>
       <div class="metric"><small>SÉRIES</small><b>${item.sets || "-"}</b></div><div class="metric"><small>REPETIÇÕES</small><b>${item.reps || "-"}</b></div>
       <div class="metric"><small>CARGA</small><b>${isProfessor() ? `<input data-load="${item.id}" type="number" min="0" step="0.5" value="${item.load ?? ""}" placeholder="-" style="width:75px;padding:6px">` : (item.load ? `${item.load} kg` : "-")}</b></div>
       <div class="metric"><small>DESCANSO</small><b>${item.rest ? `${item.rest}s` : "-"}</b></div>
       <div><button class="exercise-action complete-button ${item.completedAt ? "is-complete" : ""}" data-toggle-complete="${item.id}"><span>${item.completedAt ? "✓" : "○"}</span>${item.completedAt ? "Feito" : "Concluir"}</button> <button class="exercise-action edit-button" data-edit-workout="${item.id}"><span>✎</span>Editar</button> ${item.rest ? `<button class="secondary mini-timer" data-timer="${item.id}" data-seconds="${item.rest}">▶ ${formatTime(item.rest)}</button>` : ""} <button class="danger" data-delete-workout="${item.id}" title="Excluir">×</button></div>
-    </article>`).join("") : empty(isProfessor() ? "Nenhum exercício criado" : "Nenhum treino encontrado", isProfessor() ? "Monte a primeira planilha digital de treino." : emptyText);
+    </article>`;
+  let content = "";
+  if (workouts.length && !isProfessor()) {
+    const groups = workouts.reduce((result, item) => {
+      const group = String(item.workoutGroup || "A").toUpperCase();
+      (result[group] ||= []).push(item);
+      return result;
+    }, {});
+    content = Object.keys(groups).sort().map(group => {
+      const completed = groups[group].filter(item => item.completedAt).length;
+      return `<section class="student-workout-group" data-group="${group}">
+        <header class="student-workout-group-head">
+          <div class="student-workout-letter">${group}</div>
+          <div><small>FICHA DE TREINO</small><h3>Treino ${group}</h3><p>Exercícios exclusivos desta divisão</p></div>
+          <div class="student-workout-progress"><strong>${completed}/${groups[group].length}</strong><span>concluídos</span></div>
+        </header>
+        <div class="student-workout-group-list">${groups[group].map(workoutCard).join("")}</div>
+      </section>`;
+    }).join("");
+  } else if (workouts.length) {
+    content = workouts.map(workoutCard).join("");
+  } else {
+    content = empty(isProfessor() ? "Nenhum exercício criado" : "Nenhum treino encontrado", isProfessor() ? "Monte a primeira planilha digital de treino." : emptyText);
+  }
+  document.querySelector("#workoutList").innerHTML = content;
 }
 
 function renderWorkoutPhotos() {
