@@ -274,9 +274,12 @@ function renderWorkouts() {
 function renderWorkoutPhotos() {
   const container = document.querySelector("#workoutPhotoList");
   if (!container) return;
-  if (isProfessor()) { container.innerHTML = ""; return; }
-  const images = data.workoutImages.slice().reverse();
-  container.innerHTML = images.length ? `<div class="photo-section-head"><div><small>FICHAS IMPORTADAS</small><h3>Fotos dos seus treinos</h3></div><span>${images.length} ${images.length === 1 ? "foto" : "fotos"}</span></div><div class="workout-photo-grid">${images.map(item => `<article class="workout-photo-card" data-group="${item.workoutGroup || "A"}"><a href="${item.image}" target="_blank" rel="noopener" title="Abrir foto"><img src="${item.image}" alt="${item.title || `Ficha do Treino ${item.workoutGroup || "A"}`}"></a><div><span class="exercise-group-badge">TREINO ${item.workoutGroup || "A"}</span><strong>${item.title || `Ficha do Treino ${item.workoutGroup || "A"}`}</strong><small>Importada em ${new Date(item.createdAt).toLocaleDateString("pt-BR")}</small></div><button class="danger photo-delete" data-delete-workout-image="${item.id}" title="Excluir foto">×</button></article>`).join("")}</div>` : "";
+  const student = currentStudent();
+  const filter = document.querySelector("#workoutStudentFilter")?.value || "";
+  const images = data.workoutImages
+    .filter(item => isProfessor() ? (!filter || item.studentId === filter) : (!item.studentId || item.studentId === student?.id))
+    .slice().reverse();
+  container.innerHTML = images.length ? `<div class="photo-section-head"><div><small>FICHAS IMPORTADAS</small><h3>${isProfessor() ? "Fotos dos treinos" : "Fotos dos seus treinos"}</h3></div><span>${images.length} ${images.length === 1 ? "foto" : "fotos"}</span></div><div class="workout-photo-grid">${images.map(item => `<article class="workout-photo-card" data-group="${item.workoutGroup || "A"}"><a href="${item.image}" target="_blank" rel="noopener" title="Abrir foto"><img src="${item.image}" alt="${item.title || `Ficha do Treino ${item.workoutGroup || "A"}`}"></a><div><span class="exercise-group-badge">TREINO ${item.workoutGroup || "A"}</span><strong>${item.title || `Ficha do Treino ${item.workoutGroup || "A"}`}</strong><small>${isProfessor() ? `${studentName(item.studentId)} · ` : ""}Importada em ${new Date(item.createdAt).toLocaleDateString("pt-BR")}</small></div><button class="danger photo-delete" data-delete-workout-image="${item.id}" title="Excluir foto">×</button></article>`).join("")}</div>` : "";
 }
 
 function renderAssessments() {
@@ -375,8 +378,11 @@ document.querySelectorAll("[data-open]").forEach(button => button.addEventListen
 }));
 document.querySelector("#menuButton").addEventListener("click", () => document.querySelector(".sidebar").classList.toggle("open"));
 document.querySelector("#studentSearch").addEventListener("input", renderStudents);
-document.querySelector("#workoutStudentFilter").addEventListener("change", renderWorkouts);
-document.querySelector("#importWorkoutPhoto").addEventListener("click", () => document.querySelector("#workoutPhotoInput").click());
+document.querySelector("#workoutStudentFilter").addEventListener("change", () => { renderWorkouts(); renderWorkoutPhotos(); });
+document.querySelector("#importWorkoutPhoto").addEventListener("click", () => {
+  if (isProfessor() && !data.students.length) { toast("Cadastre um aluno antes de importar a ficha."); return; }
+  document.querySelector("#workoutPhotoInput").click();
+});
 document.querySelector("#workoutPhotoInput").addEventListener("change", async event => {
   const file = event.target.files?.[0];
   if (!file) return;
@@ -384,6 +390,9 @@ document.querySelector("#workoutPhotoInput").addEventListener("change", async ev
     toast("Preparando a foto...");
     pendingWorkoutPhoto = await compressWorkoutPhoto(file);
     document.querySelector("#photoPreview").innerHTML = `<img src="${pendingWorkoutPhoto}" alt="Prévia da ficha de treino">`;
+    const studentField = document.querySelector("#photoWorkoutForm .photo-student-field");
+    studentField.hidden = !isProfessor();
+    document.querySelector("#photoWorkoutForm").elements.studentId.required = isProfessor();
     document.querySelector("#photoWorkoutModal").showModal();
   } catch (error) {
     toast(error.message || "Não foi possível importar a foto.");
@@ -400,9 +409,10 @@ document.querySelector("#photoWorkoutForm").addEventListener("submit", event => 
     return;
   }
   if (!pendingWorkoutPhoto) { toast("Escolha uma foto da ficha."); return; }
-  ensureCurrentStudent();
   const values = Object.fromEntries(new FormData(event.currentTarget));
-  data.workoutImages.push({ id: crypto.randomUUID(), image: pendingWorkoutPhoto, title: values.title?.trim() || "", workoutGroup: values.workoutGroup || "A", createdAt: new Date().toISOString() });
+  const studentId = isProfessor() ? values.studentId : ensureCurrentStudent()?.id;
+  if (!studentId) { toast(isProfessor() ? "Selecione um aluno." : "Não foi possível identificar sua conta."); return; }
+  data.workoutImages.push({ id: crypto.randomUUID(), studentId, image: pendingWorkoutPhoto, title: values.title?.trim() || "", workoutGroup: values.workoutGroup || "A", createdAt: new Date().toISOString() });
   pendingWorkoutPhoto = "";
   event.currentTarget.reset();
   event.currentTarget.closest("dialog").close();
