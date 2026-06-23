@@ -13,6 +13,7 @@ const cloudConfig = window.MOVIPRO_SUPABASE || {};
 const cloud = cloudConfig.url && cloudConfig.anonKey && window.supabase ? window.supabase.createClient(cloudConfig.url, cloudConfig.anonKey) : null;
 let currentUser = null;
 let cloudSaveTimer = null;
+let pendingWorkoutPhoto = "";
 
 function normalizeData(value = {}) {
   return {
@@ -20,7 +21,8 @@ function normalizeData(value = {}) {
     workouts: Array.isArray(value.workouts) ? value.workouts : [],
     assessments: Array.isArray(value.assessments) ? value.assessments : [],
     appointments: Array.isArray(value.appointments) ? value.appointments : [],
-    payments: Array.isArray(value.payments) ? value.payments : []
+    payments: Array.isArray(value.payments) ? value.payments : [],
+    workoutImages: Array.isArray(value.workoutImages) ? value.workoutImages : []
   };
 }
 
@@ -53,6 +55,13 @@ function currentStudent() {
   const email = currentUser?.email?.trim().toLowerCase();
   if (!email) return null;
   return data.students.find(student => student.email?.trim().toLowerCase() === email) || null;
+}
+function ensureCurrentStudent() {
+  let student = currentStudent();
+  if (student || isProfessor() || !currentUser) return student;
+  student = { id: `account-${currentUser.id}`, name: professionalName(), email: currentUser.email || "", phone: "", goal: "Treino pessoal", createdAt: new Date().toISOString() };
+  data.students.push(student);
+  return student;
 }
 function roleWorkouts() {
   if (isProfessor()) return data.workouts;
@@ -88,10 +97,11 @@ function applyRoleLayout() {
   const professor = isProfessor();
   document.body.dataset.role = userRole();
   document.querySelectorAll("[data-professor-only]").forEach(element => element.hidden = !professor);
+  document.querySelectorAll("[data-student-only]").forEach(element => element.hidden = professor);
   const workoutTitle = document.querySelector("#treinos .section-head h2");
   const workoutText = document.querySelector("#treinos .section-head p");
   if (workoutTitle) workoutTitle.textContent = professor ? "Treinos" : "Meus treinos";
-  if (workoutText) workoutText.textContent = professor ? "Crie exercícios e deixe cada aluno registrar carga e progresso." : "Acompanhe os exercícios liberados pelo seu professor.";
+  if (workoutText) workoutText.textContent = professor ? "Crie exercícios e deixe cada aluno registrar carga e progresso." : "Monte seus treinos, importe a foto da ficha em papel e acompanhe seu progresso.";
   if (!professor && ["alunos", "professor", "avaliacoes", "agenda", "financeiro"].includes(document.querySelector(".view.active")?.id)) {
     navigate("treinos");
   }
@@ -257,8 +267,16 @@ function renderWorkouts() {
       <div class="metric"><small>SÉRIES</small><b>${item.sets || "-"}</b></div><div class="metric"><small>REPETIÇÕES</small><b>${item.reps || "-"}</b></div>
       <div class="metric"><small>CARGA</small><b>${isProfessor() ? `<input data-load="${item.id}" type="number" min="0" step="0.5" value="${item.load ?? ""}" placeholder="-" style="width:75px;padding:6px">` : (item.load ? `${item.load} kg` : "-")}</b></div>
       <div class="metric"><small>DESCANSO</small><b>${item.rest ? `${item.rest}s` : "-"}</b></div>
-      <div><button class="exercise-action complete-button ${item.completedAt ? "is-complete" : ""}" data-toggle-complete="${item.id}"><span>${item.completedAt ? "✓" : "○"}</span>${item.completedAt ? "Feito" : "Concluir"}</button> ${isProfessor() ? `<button class="exercise-action edit-button" data-edit-workout="${item.id}"><span>✎</span>Editar</button>` : ""} ${item.rest ? `<button class="secondary mini-timer" data-timer="${item.id}" data-seconds="${item.rest}">▶ ${formatTime(item.rest)}</button>` : ""} ${isProfessor() ? `<button class="danger" data-delete-workout="${item.id}" title="Excluir">×</button>` : ""}</div>
+      <div><button class="exercise-action complete-button ${item.completedAt ? "is-complete" : ""}" data-toggle-complete="${item.id}"><span>${item.completedAt ? "✓" : "○"}</span>${item.completedAt ? "Feito" : "Concluir"}</button> <button class="exercise-action edit-button" data-edit-workout="${item.id}"><span>✎</span>Editar</button> ${item.rest ? `<button class="secondary mini-timer" data-timer="${item.id}" data-seconds="${item.rest}">▶ ${formatTime(item.rest)}</button>` : ""} <button class="danger" data-delete-workout="${item.id}" title="Excluir">×</button></div>
     </article>`).join("") : empty(isProfessor() ? "Nenhum exercício criado" : "Nenhum treino encontrado", isProfessor() ? "Monte a primeira planilha digital de treino." : emptyText);
+}
+
+function renderWorkoutPhotos() {
+  const container = document.querySelector("#workoutPhotoList");
+  if (!container) return;
+  if (isProfessor()) { container.innerHTML = ""; return; }
+  const images = data.workoutImages.slice().reverse();
+  container.innerHTML = images.length ? `<div class="photo-section-head"><div><small>FICHAS IMPORTADAS</small><h3>Fotos dos seus treinos</h3></div><span>${images.length} ${images.length === 1 ? "foto" : "fotos"}</span></div><div class="workout-photo-grid">${images.map(item => `<article class="workout-photo-card" data-group="${item.workoutGroup || "A"}"><a href="${item.image}" target="_blank" rel="noopener" title="Abrir foto"><img src="${item.image}" alt="${item.title || `Ficha do Treino ${item.workoutGroup || "A"}`}"></a><div><span class="exercise-group-badge">TREINO ${item.workoutGroup || "A"}</span><strong>${item.title || `Ficha do Treino ${item.workoutGroup || "A"}`}</strong><small>Importada em ${new Date(item.createdAt).toLocaleDateString("pt-BR")}</small></div><button class="danger photo-delete" data-delete-workout-image="${item.id}" title="Excluir foto">×</button></article>`).join("")}</div>` : "";
 }
 
 function renderAssessments() {
@@ -284,7 +302,7 @@ function renderPayments() {
   document.querySelector("#paymentList").innerHTML = data.payments.length ? `<table class="data-table"><thead><tr><th>ALUNO</th><th>VENCIMENTO</th><th>VALOR</th><th>STATUS</th><th></th></tr></thead><tbody>${data.payments.map(item => `<tr><td>${studentName(item.studentId)}</td><td>${localDate(item.dueDate)}</td><td>${currency(item.amount)}</td><td><span class="status ${item.status}">${item.status === "paid" ? "PAGO" : "PENDENTE"}</span></td><td><button class="danger" data-delete-payment="${item.id}">×</button></td></tr>`).join("")}</tbody></table>` : empty("Nenhum lançamento", "Registre mensalidades e pagamentos.");
 }
 
-function renderAll() { renderStats(); renderStudents(); renderWorkouts(); renderAssessments(); renderAppointments(); renderPayments(); }
+function renderAll() { renderStats(); renderStudents(); renderWorkoutPhotos(); renderWorkouts(); renderAssessments(); renderAppointments(); renderPayments(); }
 
 function bindForm(formId, collection, transform, message) {
   document.querySelector(formId).addEventListener("submit", event => {
@@ -307,10 +325,32 @@ function runButtonTimer(button, total) {
   timers[id] = { interval };
 }
 
+function compressWorkoutPhoto(file) {
+  return new Promise((resolve, reject) => {
+    if (!file?.type?.startsWith("image/")) { reject(new Error("Selecione uma imagem válida.")); return; }
+    const image = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    image.onload = () => {
+      const maxSize = 1200;
+      const scale = Math.min(1, maxSize / Math.max(image.width, image.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(image.width * scale));
+      canvas.height = Math.max(1, Math.round(image.height * scale));
+      canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(objectUrl);
+      resolve(canvas.toDataURL("image/jpeg", 0.72));
+    };
+    image.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error("Não foi possível abrir esta imagem.")); };
+    image.src = objectUrl;
+  });
+}
+
 function openWorkoutModal(item = null, studentId = "", workoutGroup = "A") {
   const modal = document.querySelector("#workoutModal");
   const form = document.querySelector("#workoutForm");
   form.reset();
+  const studentField = form.elements.studentId.closest("label");
+  studentField.hidden = !isProfessor();
   form.dataset.editId = item?.id || "";
   modal.querySelector(".modal-head h2").textContent = item ? "Editar exercício" : "Novo exercício";
   modal.querySelector(".modal-actions .primary").textContent = item ? "Salvar alterações" : "Adicionar exercício";
@@ -319,7 +359,7 @@ function openWorkoutModal(item = null, studentId = "", workoutGroup = "A") {
       form.elements[name].value = item[name] ?? (name === "workoutGroup" ? "A" : "");
     });
   } else {
-    form.elements.studentId.value = studentId;
+    form.elements.studentId.value = isProfessor() ? studentId : (ensureCurrentStudent()?.id || "");
     form.elements.workoutGroup.value = workoutGroup;
   }
   modal.showModal();
@@ -328,7 +368,7 @@ function openWorkoutModal(item = null, studentId = "", workoutGroup = "A") {
 document.querySelectorAll(".nav-item").forEach(button => button.addEventListener("click", () => navigate(button.dataset.view)));
 document.querySelectorAll("[data-go]").forEach(button => button.addEventListener("click", () => navigate(button.dataset.go)));
 document.querySelectorAll("[data-open]").forEach(button => button.addEventListener("click", () => {
-  if (!isProfessor()) { toast("Esta acao e exclusiva do professor."); return; }
+  if (!isProfessor() && button.dataset.open !== "workoutModal") { toast("Esta acao e exclusiva do professor."); return; }
   if (!data.students.length && !["studentModal", "workoutModal"].includes(button.dataset.open)) { toast("Cadastre um aluno primeiro."); return; }
   if (button.dataset.open === "workoutModal") { openWorkoutModal(); return; }
   document.querySelector(`#${button.dataset.open}`).showModal();
@@ -336,6 +376,38 @@ document.querySelectorAll("[data-open]").forEach(button => button.addEventListen
 document.querySelector("#menuButton").addEventListener("click", () => document.querySelector(".sidebar").classList.toggle("open"));
 document.querySelector("#studentSearch").addEventListener("input", renderStudents);
 document.querySelector("#workoutStudentFilter").addEventListener("change", renderWorkouts);
+document.querySelector("#importWorkoutPhoto").addEventListener("click", () => document.querySelector("#workoutPhotoInput").click());
+document.querySelector("#workoutPhotoInput").addEventListener("change", async event => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    toast("Preparando a foto...");
+    pendingWorkoutPhoto = await compressWorkoutPhoto(file);
+    document.querySelector("#photoPreview").innerHTML = `<img src="${pendingWorkoutPhoto}" alt="Prévia da ficha de treino">`;
+    document.querySelector("#photoWorkoutModal").showModal();
+  } catch (error) {
+    toast(error.message || "Não foi possível importar a foto.");
+  } finally {
+    event.target.value = "";
+  }
+});
+document.querySelector("#photoWorkoutForm").addEventListener("submit", event => {
+  event.preventDefault();
+  if (event.submitter?.value === "cancel") {
+    pendingWorkoutPhoto = "";
+    event.currentTarget.reset();
+    event.currentTarget.closest("dialog").close();
+    return;
+  }
+  if (!pendingWorkoutPhoto) { toast("Escolha uma foto da ficha."); return; }
+  ensureCurrentStudent();
+  const values = Object.fromEntries(new FormData(event.currentTarget));
+  data.workoutImages.push({ id: crypto.randomUUID(), image: pendingWorkoutPhoto, title: values.title?.trim() || "", workoutGroup: values.workoutGroup || "A", createdAt: new Date().toISOString() });
+  pendingWorkoutPhoto = "";
+  event.currentTarget.reset();
+  event.currentTarget.closest("dialog").close();
+  saveData("Foto do treino importada com sucesso.");
+});
 
 bindForm("#studentForm", "students", values => values, "Aluno adicionado com sucesso.");
 document.querySelector("#workoutForm").addEventListener("submit", event => {
@@ -346,6 +418,7 @@ document.querySelector("#workoutForm").addEventListener("submit", event => {
     return;
   }
   const values = Object.fromEntries(new FormData(form));
+  if (!isProfessor()) values.studentId = ensureCurrentStudent()?.id || "";
   const normalized = { ...values, workoutGroup: String(values.workoutGroup || "A").trim().toUpperCase(), sets: values.sets ? Number(values.sets) : "", load: values.load ? Number(values.load) : "", rest: values.rest ? Number(values.rest) : "" };
   const existing = data.workouts.find(item => item.id === form.dataset.editId);
   if (existing) Object.assign(existing, normalized, { updatedAt: new Date().toISOString() });
@@ -377,6 +450,11 @@ document.addEventListener("click", event => {
   }
   const timerButton = event.target.closest("[data-timer]");
   if (timerButton) runButtonTimer(timerButton, timerButton.dataset.seconds);
+  const deleteImageButton = event.target.closest("[data-delete-workout-image]");
+  if (deleteImageButton && confirm("Excluir esta foto do treino?")) {
+    data.workoutImages = data.workoutImages.filter(item => item.id !== deleteImageButton.dataset.deleteWorkoutImage);
+    saveData("Foto excluída.");
+  }
   const deletions = [["deleteWorkout", "workouts"], ["deleteAppointment", "appointments"], ["deletePayment", "payments"]];
   for (const [key, collection] of deletions) if (event.target.dataset[key]) { data[collection] = data[collection].filter(item => item.id !== event.target.dataset[key]); saveData("Registro excluído."); }
   if (event.target.dataset.deleteStudent && confirm("Excluir este aluno e todos os registros relacionados?")) {
